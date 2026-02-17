@@ -477,9 +477,9 @@ const generateToken = (id) => {
 //   },
 // })
 
-console.log("USER length:", process.env.EMAIL_USER?.length);
-console.log("PASS length:", process.env.EMAIL_PASS?.length);
-console.log("PASS raw:", JSON.stringify(process.env.EMAIL_PASS));
+// console.log("USER length:", process.env.EMAIL_USER?.length);
+// console.log("PASS length:", process.env.EMAIL_PASS?.length);
+// console.log("PASS raw:", JSON.stringify(process.env.EMAIL_PASS));
 
 
 // const transporter = nodemailer.createTransport({
@@ -512,8 +512,7 @@ export const signup = async (req, res) => {
     const user = await User.create({ username, password, email });
     const token = generateToken(user._id);
 
-    res
-      .cookie('token', token, {
+    res.cookie('token', token, {
         httpOnly: true,
         secure: false,
         sameSite: 'lax',
