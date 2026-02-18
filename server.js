@@ -198,13 +198,13 @@
 
 //latest
 
-import dotenv from 'dotenv';
-dotenv.config();
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
 import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/admin.js';
 // import helmet from 'helmet'; // ← COMMENT THIS OUT
 import rateLimit from 'express-rate-limit';
 
@@ -235,16 +235,9 @@ const loginLimiter = rateLimit({
 });
 app.use('/api/auth/login', loginLimiter);
 
-// 6. Cache Control - REMOVE THIS TOO (might be interfering)
-// app.use((req, res, next) => {
-//   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-//   res.set('Pragma', 'no-cache');
-//   res.set('Expires', '0');
-//   next();
-// });
-
-// 7. Routes
+// 6. Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 const PORT = process.env.PORT || 5000;
 

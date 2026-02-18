@@ -477,9 +477,9 @@ const generateToken = (id) => {
 //   },
 // })
 
-console.log("USER length:", process.env.EMAIL_USER?.length);
-console.log("PASS length:", process.env.EMAIL_PASS?.length);
-console.log("PASS raw:", JSON.stringify(process.env.EMAIL_PASS));
+console.log("USER length:", process.env.SMTP_USER?.length);
+console.log("PASS length:", process.env.SMTP_PASSWORD?.length);
+console.log("PASS raw:", JSON.stringify(process.env.SMTP_PASSWORD));
 
 
 // const transporter = nodemailer.createTransport({
@@ -493,7 +493,7 @@ console.log("PASS raw:", JSON.stringify(process.env.EMAIL_PASS));
 
 export const signup = async (req, res) => {
   try {
-    const { username, password, email } = req.body;
+    const { username, password, email, accountType } = req.body;
 
     if (!username || !password || !email) {
       return res.status(400).json({ message: 'Please provide all fields' });
@@ -509,7 +509,8 @@ export const signup = async (req, res) => {
       return res.status(400).json({ message: 'Email already registered!' });
     }
 
-    const user = await User.create({ username, password, email });
+    const role = accountType === 'organization' ? 'admin' : 'user';
+    const user = await User.create({ username, password, email, role });
     const token = generateToken(user._id);
 
     res
@@ -522,7 +523,14 @@ export const signup = async (req, res) => {
       .status(201)
       .json({
         success: true,
-        user: { id: user._id, username: user.username },
+        token,
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
       });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -531,12 +539,34 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { email, username, identifier, password } = req.body;
+    const loginId = (email || identifier || username || '').trim();
 
-    const user = await User.findOne({ username }).select('+password');
-    if (!user || !(await user.comparePassword(password))) {
+    if (!loginId || !password) {
+      return res.status(400).json({ message: 'Email/username and password are required' });
+    }
+
+    const isEmail = loginId.includes('@');
+    const query = isEmail ? { email: loginId.toLowerCase() } : { username: loginId };
+
+    const user = await User.findOne(query).select('+password');
+    if (!user || !user.password) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+
+    // Support legacy/plaintext passwords in DB (one-time migration to bcrypt)
+    const looksBcrypt = typeof user.password === 'string' && user.password.startsWith('$2');
+    let ok = false;
+    if (looksBcrypt) {
+      ok = await user.comparePassword(password);
+    } else {
+      ok = user.password === password;
+      if (ok) {
+        user.password = password;
+        await user.save(); // will bcrypt-hash via pre-save hook
+      }
+    }
+    if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
 
     const token = generateToken(user._id);
 
@@ -550,7 +580,14 @@ export const login = async (req, res) => {
       .status(200)
       .json({
         success: true,
-        user: { id: user._id, username: user.username },
+        token,
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
       });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -574,8 +611,8 @@ export const logout = async (req, res) => {
 };
 
 export const forgotPassword = async (req, res) => {
- console.log('EMAIL_USER:', process.env.EMAIL_USER);
-  console.log('EMAIL_PASS:', process.env.EMAIL_PASS);
+ console.log('SMTP_USER:', process.env.SMTP_USER);
+  console.log('SMTP_PASSWORD:', process.env.SMTP_PASSWORD);
   try {
     const { email } = req.body;
 
@@ -591,14 +628,14 @@ export const forgotPassword = async (req, res) => {
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD,
   },
 });
 
 
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: process.env.SMTP_USER,
       to: user.email,
       subject: 'Password Reset Link',
       html: `
@@ -645,5 +682,79 @@ export const resetPassword = async (req, res) => {
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const verifyToken = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const user = await User.findOne({
+      inviteToken: token,
+      inviteTokenExpiry: { $gt: new Date() },
+    }).lean();
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invite link is invalid or has expired.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      email: user.email,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isActive: user.isActive,
+      },
+    });
+  } catch (error) {
+    console.error('Verify invite token error:', error);
+    return res.status(500).json({ error: 'Failed to verify invite token' });
+  }
+};
+
+export const setPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    const user = await User.findOne({
+      inviteToken: token,
+      inviteTokenExpiry: { $gt: new Date() },
+    }).select('+inviteToken +inviteTokenExpiry');
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invite link is invalid or has expired.' });
+    }
+
+    user.password = password;
+    user.isActive = true;
+    user.inviteToken = undefined;
+    user.inviteTokenExpiry = undefined;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password set successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    console.error('Set password from invite error:', error);
+    return res.status(500).json({ error: 'Failed to set password' });
   }
 };

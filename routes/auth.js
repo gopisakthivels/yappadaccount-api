@@ -37,7 +37,7 @@
 
 
 import express from 'express';
-import { signup, login, getMe, logout, forgotPassword, resetPassword } from '../controllers/authcontroller.js';
+import { signup, login, getMe, logout, forgotPassword, resetPassword, verifyToken, setPassword } from '../controllers/authcontroller.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -46,6 +46,8 @@ router.post('/test', (req, res) => res.json({ message: "Test route working" }));
 
 router.post('/signup', signup);
 router.post('/login', login);
+router.post('/verify-token', verifyToken);
+router.post('/set-password', setPassword);
 router.get('/me', protect, getMe);
 router.post('/logout', logout);
 router.post('/forgot-password', forgotPassword);

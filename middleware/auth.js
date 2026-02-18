@@ -44,7 +44,7 @@ export const protect = async (req, res, next) => {
     req.headers.authorization.startsWith('Bearer')
   ) {
     token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies.token) { // ← ADD THIS
+  } else if (req.cookies.token) {
     token = req.cookies.token;
   }
 
@@ -63,18 +63,29 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({ message: 'User not found' });
     }
 
+    if (req.user.isActive === false) {
+      return res.status(403).json({ message: 'Account is not active yet' });
+    }
+
     next();
   } catch (error) {
     console.error(error);
-    
+
     // Check if token expired
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
+      return res.status(401).json({
         message: 'Token expired, please login again',
-        expired: true 
+        expired: true,
       });
     }
-    
+
     return res.status(401).json({ message: 'Not authorized, token failed' });
   }
+};
+
+export const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  return next();
 };

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "type": "module",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "seed:admin": "node scripts/seed-admin.js"
   },
   "keywords": [
     "auth",

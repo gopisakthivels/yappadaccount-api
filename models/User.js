@@ -55,15 +55,16 @@ import crypto from 'crypto';
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
-    required: [true, 'Please provide a username'],
+    required: false,
     unique: true,
+    sparse: true,
     trim: true,
     minlength: [3, 'Username must be at least 3 characters long'],
     maxlength: [30, 'Username cannot exceed 30 characters']
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
+    required: false,
     minlength: [6, 'Password must be at least 6 characters long'],
     select: false
   },
@@ -73,6 +74,27 @@ const userSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     lowercase: true,
+  },
+  name: {
+    type: String,
+    trim: true,
+  },
+  inviteToken: {
+    type: String,
+    select: false,
+  },
+  inviteTokenExpiry: {
+    type: Date,
+    select: false,
+  },
+  role: {
+    type: String,
+    default: 'user',
+    enum: ['user', 'admin'],
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
   },
   resetToken: {
     type: String,
@@ -88,9 +110,9 @@ const userSchema = new mongoose.Schema({
   },
 });
 
-// Hash password before saving
+// Hash password before saving (skip when password is empty, e.g. invited user)
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
   const salt = await bcrypt.genSalt(10);
