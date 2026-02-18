@@ -206,6 +206,7 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 // import helmet from 'helmet'; // ← COMMENT THIS OUT
+import helmet from 'helmet'; // 
 import rateLimit from 'express-rate-limit';
 
 connectDB();
@@ -221,17 +222,23 @@ app.use(express.urlencoded({ extended: true }));
 
 // 3. CORS
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: process.env.CLIENT_URL,
   credentials: true,
 }));
 
 // 4. HELMET - COMPLETELY DISABLED FOR NOW
-// app.use(helmet()); // ← COMMENTED OUT
+app.use(helmet()); //
 
 // 5. Rate Limiter
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs:  15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per IP
+  message: {
+    success: false,
+    message: "Too many login attempts. Try again in 15 minutes."
+  },
+  standardHeaders: true,
+  legacyHeaders: false
 });
 app.use('/api/auth/login', loginLimiter);
 

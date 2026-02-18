@@ -513,8 +513,7 @@ export const signup = async (req, res) => {
     const user = await User.create({ username, password, email, role });
     const token = generateToken(user._id);
 
-    res
-      .cookie('token', token, {
+    res.cookie('token', token, {
         httpOnly: true,
         secure: false,
         sameSite: 'lax',

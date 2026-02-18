@@ -39,6 +39,7 @@
 import express from 'express';
 import { signup, login, getMe, logout, forgotPassword, resetPassword, verifyToken, setPassword } from '../controllers/authcontroller.js';
 import { protect } from '../middleware/auth.js';
+import { validateResetPassword } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -51,6 +52,8 @@ router.post('/set-password', setPassword);
 router.get('/me', protect, getMe);
 router.post('/logout', logout);
 router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+// router.post('/reset-password', resetPassword);
+router.post('/reset-password', validateResetPassword, resetPassword);
+
 
 export default router;
