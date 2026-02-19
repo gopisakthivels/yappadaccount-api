@@ -24,10 +24,40 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 3. CORS
-app.use(cors({
-  origin: process.env.CLIENT_URL,
-  credentials: true,
-}));
+const envOrigins = [
+  process.env.CLIENT_URL,
+  process.env.APP_URL,
+  ...(process.env.CLIENT_URLS ? process.env.CLIENT_URLS.split(',') : []),
+]
+  .filter(Boolean)
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  ...envOrigins,
+]);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // allow non-browser clients (curl/postman)
+  if (allowedOrigins.has(origin)) return true;
+  if (origin.startsWith('http://localhost:')) return true;
+  if (origin.startsWith('http://127.0.0.1:')) return true;
+  return /^https:\/\/[a-z0-9-]+\.ngrok-free\.(app|dev)$/i.test(origin);
+};
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) return callback(null, true);
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
+    credentials: true,
+    optionsSuccessStatus: 204,
+  })
+);
 
 // 4. HELMET - COMPLETELY DISABLED FOR NOW
 app.use(helmet()); //
