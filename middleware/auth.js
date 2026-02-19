@@ -33,6 +33,7 @@
 
 
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 
 export const protect = async (req, res, next) => {
@@ -83,9 +84,16 @@ export const protect = async (req, res, next) => {
   }
 };
 
-export const requireAdmin = (req, res, next) => {
+export const requireAdmin = async (req, res, next) => {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
+  
+  // Auto-assign organizationId to admins who don't have one (backward compatibility)
+  if (!req.user.organizationId && req.user.role === 'admin') {
+    req.user.organizationId = new mongoose.Types.ObjectId().toString();
+    await req.user.save();
+  }
+  
   return next();
 };

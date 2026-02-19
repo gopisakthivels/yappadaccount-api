@@ -96,6 +96,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  organizationId: {
+    type: String,
+    index: true,
+    trim: true,
+  },
   resetToken: {
     type: String,
     select: false

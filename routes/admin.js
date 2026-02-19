@@ -36,6 +36,7 @@ router.post('/invite-user', protect, requireAdmin, async (req, res) => {
       inviteTokenExpiry,
       isActive: false,
       role: 'user',
+      organizationId: req.user.organizationId,
     });
 
     // Send invite email (don't fail the request if email fails)
@@ -74,7 +75,11 @@ router.post('/invite-user', protect, requireAdmin, async (req, res) => {
 // Get all users (Admin only)
 router.get('/users', protect, requireAdmin, async (req, res) => {
   try {
-    const users = await User.find({})
+    if (!req.user.organizationId) {
+      return res.status(400).json({ error: 'Admin user must have an organizationId' });
+    }
+
+    const users = await User.find({ organizationId: req.user.organizationId })
       .select('-password -inviteToken -resetToken -resetTokenExpiry')
       .lean();
 
@@ -82,6 +87,49 @@ router.get('/users', protect, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Toggle user active status (Admin only)
+router.put('/users/:id/toggle-active', protect, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.user.organizationId) {
+      return res.status(400).json({ error: 'Admin user must have an organizationId' });
+    }
+
+    const user = await User.findOne({ 
+      _id: id, 
+      organizationId: req.user.organizationId 
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found or does not belong to your organization' });
+    }
+
+    // Prevent admin from deactivating themselves
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ error: 'Cannot deactivate your own account' });
+    }
+
+    user.isActive = !user.isActive;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        isActive: user.isActive,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error('Error toggling user status:', error);
+    res.status(500).json({ error: 'Failed to toggle user status' });
   }
 });
 

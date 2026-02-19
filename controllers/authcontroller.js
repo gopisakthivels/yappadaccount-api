@@ -458,6 +458,7 @@
 
 
 
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
@@ -510,7 +511,17 @@ export const signup = async (req, res) => {
     }
 
     const role = accountType === 'organization' ? 'admin' : 'user';
-    const user = await User.create({ username, password, email, role });
+    const organizationId = accountType === 'organization' 
+      ? new mongoose.Types.ObjectId().toString() 
+      : undefined;
+    
+    const user = await User.create({ 
+      username, 
+      password, 
+      email, 
+      role,
+      organizationId 
+    });
     const token = generateToken(user._id);
 
     res.cookie('token', token, {
@@ -529,6 +540,7 @@ export const signup = async (req, res) => {
           email: user.email,
           name: user.name,
           role: user.role,
+          organizationId: user.organizationId,
         },
       });
   } catch (error) {
@@ -586,6 +598,7 @@ export const login = async (req, res) => {
           email: user.email,
           name: user.name,
           role: user.role,
+          organizationId: user.organizationId,
         },
       });
   } catch (error) {

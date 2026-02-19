@@ -23,10 +23,14 @@ async function main() {
     existing.isActive = true;
     if (!existing.name) existing.name = ADMIN_NAME;
     if (!existing.username) existing.username = ADMIN_USERNAME.slice(0, 30);
+    if (!existing.organizationId) {
+      existing.organizationId = new mongoose.Types.ObjectId().toString();
+    }
     existing.password = ADMIN_PASSWORD; // will hash on save
     await existing.save();
     console.log(`✅ Updated existing admin: ${email}`);
   } else {
+    const organizationId = new mongoose.Types.ObjectId().toString();
     await User.create({
       email,
       username: ADMIN_USERNAME.slice(0, 30),
@@ -34,8 +38,9 @@ async function main() {
       password: ADMIN_PASSWORD, // will hash on save
       role: "admin",
       isActive: true,
+      organizationId,
     });
-    console.log(`✅ Created admin: ${email}`);
+    console.log(`✅ Created admin: ${email} with organizationId: ${organizationId}`);
   }
 
   await mongoose.disconnect();
