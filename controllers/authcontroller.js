@@ -526,8 +526,8 @@ export const signup = async (req, res) => {
 
     res.cookie('token', token, {
         httpOnly: true,
-        secure: false,
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         path: '/',
       })
       .status(201)
@@ -548,6 +548,7 @@ export const signup = async (req, res) => {
   }
 };
 
+
 export const login = async (req, res) => {
   try {
     const { email, username, identifier, password } = req.body;
@@ -558,34 +559,72 @@ export const login = async (req, res) => {
     }
 
     const isEmail = loginId.includes('@');
-    const query = isEmail ? { email: loginId.toLowerCase() } : { username: loginId };
+    const query = isEmail
+      ? { email: loginId.toLowerCase() }
+      : { username: loginId };
 
     const user = await User.findOne(query).select('+password');
+
     if (!user || !user.password) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Support legacy/plaintext passwords in DB (one-time migration to bcrypt)
-    const looksBcrypt = typeof user.password === 'string' && user.password.startsWith('$2');
+    // 🔓 Auto-unlock if lock expired
+    if (user.lockUntil && user.lockUntil <= Date.now()) {
+      user.failedLoginAttempts = 0;
+      user.lockUntil = undefined;
+      await user.save();
+    }
+
+    // 🔒 If still locked
+    if (user.lockUntil && user.lockUntil > Date.now()) {
+      return res.status(403).json({
+        message: 'Account locked. Try again later.',
+      });
+    }
+
+    // Check password
+    const looksBcrypt =
+      typeof user.password === 'string' &&
+      user.password.startsWith('$2');
+
     let ok = false;
+
     if (looksBcrypt) {
       ok = await user.comparePassword(password);
     } else {
       ok = user.password === password;
       if (ok) {
         user.password = password;
-        await user.save(); // will bcrypt-hash via pre-save hook
+        await user.save();
       }
     }
-    if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+
+    // ❌ wrong password
+    if (!ok) {
+      user.failedLoginAttempts += 1;
+
+      if (user.failedLoginAttempts >= 5) {
+        user.lockUntil = Date.now() + 15 * 60 * 1000; // 15 min lock
+      }
+
+      await user.save();
+
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // ✅ Successful login → reset
+    user.failedLoginAttempts = 0;
+    user.lockUntil = undefined;
+    await user.save();
 
     const token = generateToken(user._id);
 
     res
       .cookie('token', token, {
         httpOnly: true,
-        secure: false,
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         path: '/',
       })
       .status(200)
@@ -601,10 +640,74 @@ export const login = async (req, res) => {
           organizationId: user.organizationId,
         },
       });
+
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+
+
+
+
+
+// export const login = async (req, res) => {
+//   try {
+//     const { email, username, identifier, password } = req.body;
+//     const loginId = (email || identifier || username || '').trim();
+
+//     if (!loginId || !password) {
+//       return res.status(400).json({ message: 'Email/username and password are required' });
+//     }
+
+//     const isEmail = loginId.includes('@');
+//     const query = isEmail ? { email: loginId.toLowerCase() } : { username: loginId };
+
+//     const user = await User.findOne(query).select('+password');
+//     if (!user || !user.password) {
+//       return res.status(401).json({ message: 'Invalid credentials' });
+//     }
+
+//     // Support legacy/plaintext passwords in DB (one-time migration to bcrypt)
+//     const looksBcrypt = typeof user.password === 'string' && user.password.startsWith('$2');
+//     let ok = false;
+//     if (looksBcrypt) {
+//       ok = await user.comparePassword(password);
+//     } else {
+//       ok = user.password === password;
+//       if (ok) {
+//         user.password = password;
+//         await user.save(); // will bcrypt-hash via pre-save hook
+//       }
+//     }
+//     if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+
+//     const token = generateToken(user._id);
+
+//     res
+//       .cookie('token', token, {
+//         httpOnly: true,
+//         secure: false,
+//         sameSite: 'lax',
+//         path: '/',
+//       })
+//       .status(200)
+//       .json({
+//         success: true,
+//         token,
+//         user: {
+//           id: user._id,
+//           username: user.username,
+//           email: user.email,
+//           name: user.name,
+//           role: user.role,
+//           organizationId: user.organizationId,
+//         },
+//       });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// };
 
 export const getMe = async (req, res) => {
   res.json({ user: req.user });

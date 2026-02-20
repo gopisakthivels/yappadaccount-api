@@ -113,6 +113,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+failedLoginAttempts: {
+  type: Number,
+  default: 0,
+},
+
+lockUntil: {
+  type: Date,
+},
 });
 
 // Hash password before saving (skip when password is empty, e.g. invited user)

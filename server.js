@@ -8,7 +8,6 @@ import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
-// import helmet from 'helmet'; // ← COMMENT THIS OUT
 import helmet from 'helmet'; // 
 import rateLimit from 'express-rate-limit';
 
@@ -65,7 +64,7 @@ app.use(helmet()); //
 // 5. Rate Limiter
 const loginLimiter = rateLimit({
   windowMs:  15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per IP
+  max: 100, // 5 attempts per IP
   message: {
     success: false,
     message: "Too many login attempts. Try again in 15 minutes."
@@ -73,7 +72,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
-app.use('/api/auth/login', loginLimiter);
+// app.use('/api/auth/login', loginLimiter);
 
 // 6. Routes
 app.use('/api/auth', authRoutes);
